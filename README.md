@@ -14,14 +14,22 @@ brew install go
 brew install ffmpeg
 ```
 
+## Run Locally
+
+- Clone the project
+- Go to the project directory
+```bash
+cd File-To-BinaryVideo-BackTo-File
+```
+- Run the program
+
+```bash
+  go run . -inputfile "inputfilename.filetype" -cpuprofile cpuprof.prof
+```
 
 ## Demo
 
-
-
 https://github.com/Clint-Mathews/File-To-BinaryVideo-BackTo-File/assets/19289251/5eee006a-8912-43ec-8d61-a8ef5451ed94
-
-
 
 ## Lessons Learned
 
