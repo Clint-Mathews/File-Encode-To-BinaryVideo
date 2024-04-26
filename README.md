@@ -17,7 +17,10 @@ brew install ffmpeg
 
 ## Demo
 
-Insert gif or link to demo
+
+
+https://github.com/Clint-Mathews/File-To-BinaryVideo-BackTo-File/assets/19289251/5eee006a-8912-43ec-8d61-a8ef5451ed94
+
 
 
 ## Lessons Learned
@@ -29,9 +32,6 @@ Insert gif or link to demo
 - ASCII <-> binary converstions 
 - Video creation using ffmpeg
 - RGB Channels, frames and how to create images using the same
-
-
-
 
 ## Links
 
