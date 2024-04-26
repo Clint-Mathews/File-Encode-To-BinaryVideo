@@ -27,6 +27,25 @@ cd File-To-BinaryVideo-BackTo-File
   go run . -inputfile "inputfilename.filetype" -cpuprofile cpuprof.prof
 ```
 
+### Program input parameters:
+Example:
+```bash
+  go run . -inputfile test.png -cpuprofile cpuprof.prof -h 1080 -w 1920
+```
+
+#### Required parameters:
+- inputfile: Path to file to be encoded to binary. Eg: `-inputfile test.png`
+- cpuprofile: File name to save cpu profiling. Eg: `-cpuprofile cpuprof.prof`
+#### Optional parameters:
+- h: Frame height of the video. Eg: `-h 1080`
+- w: Frame width of the video. Eg: `-h 1920`
+
+### Program output:
+
+- `binaryVideo.mp4`: Binary video of the file.
+- `decodedFile.*filetype`: Decoded file from the binary video.
+
+
 ## Demo
 
 https://github.com/Clint-Mathews/File-To-BinaryVideo-BackTo-File/assets/19289251/5eee006a-8912-43ec-8d61-a8ef5451ed94
