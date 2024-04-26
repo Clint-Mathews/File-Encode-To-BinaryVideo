@@ -13,13 +13,14 @@ import (
 	"runtime/pprof"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
-	dummySplitByte = "00000000"   // Used to seperate file data and file type
-	blankByte      = "11111111"   // On video is decode the end is padded with blankbytes Black pixels
-	outputVideo    = "output.mp4" // Default output video name and format
-	outputFile     = "output"     // Default output file name
+	dummySplitByte = "00000000"        // Used to seperate file data and file type
+	blankByte      = "11111111"        // On video is decode the end is padded with blankbytes Black pixels
+	outputVideo    = "binaryVideo.mp4" // Default output video name and format
+	outputFile     = "decodedFile"     // Default output file name
 )
 
 var (
@@ -52,6 +53,8 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
+	startTime := time.Now()
+
 	// Read file and convert to video
 	readAndEncodeASCIIFileAsBinary()
 	createVideoFromBitString()
@@ -60,7 +63,7 @@ func main() {
 	outputByteArray := decodeVideoToBinaryString()
 	file, fileType := decodeFileFromBinaryToASCII(outputByteArray)
 	outputFileName := generateFileUsingDecodedBytes(file, fileType)
-	fmt.Printf("Output decoded file from video: %s\n", outputFileName)
+	fmt.Printf("Output decoded file from video: %s, Time take for encode-decode: %s\n", outputFileName, time.Since(startTime))
 }
 
 func readAndEncodeASCIIFileAsBinary() {

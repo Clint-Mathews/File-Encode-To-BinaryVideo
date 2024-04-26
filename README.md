@@ -3,7 +3,6 @@
 
 Encode any file to binary video, which can then be decoded back to the original file!
 
-
 ## Prerequisites 
 
 - Golang, version: `1.22.1`
