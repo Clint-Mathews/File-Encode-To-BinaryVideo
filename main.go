@@ -16,18 +16,18 @@ import (
 )
 
 const (
-	dummySplitByte = "00000000"
-	blankByte      = "11111111"
-	outputVideo    = "output.mp4"
-	outputFile     = "output"
+	dummySplitByte = "00000000"   // Used to seperate file data and file type
+	blankByte      = "11111111"   // On video is decode the end is padded with blankbytes Black pixels
+	outputVideo    = "output.mp4" // Default output video name and format
+	outputFile     = "output"     // Default output file name
 )
 
 var (
-	fileDataInBits strings.Builder
-	inputfile      = flag.String("inputfile", "", "Path to file to be encoded to binary!")
-	height         = flag.Int("h", 480, "Frame height of the video!")
-	width          = flag.Int("w", 640, "Frame width of the video!")
-	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to `file`")
+	fileDataBitsAsString strings.Builder
+	inputfile            = flag.String("inputfile", "", "Path to file to be encoded to binary!")
+	height               = flag.Int("h", 480, "Frame height of the video!")
+	width                = flag.Int("w", 640, "Frame width of the video!")
+	cpuprofile           = flag.String("cpuprofile", "", "write cpu profile to `file`")
 )
 
 func main() {
@@ -39,6 +39,7 @@ func main() {
 
 	fmt.Println("File encode to BinaryVideo -> Decode back to file!")
 
+	// Setting up cpu profiling
 	if *cpuprofile != "" {
 		f, err := os.Create("./profiles/" + *cpuprofile)
 		if err != nil {
@@ -52,16 +53,17 @@ func main() {
 	}
 
 	// Read file and convert to video
-	readAndEncodeFileAsBinary()
-	outputvideo := createVideoFromEncodeData()
+	readAndEncodeASCIIFileAsBinary()
+	createVideoFromBitString()
 
 	// Decode video and convert back to file
-	outputBitArray := decodeBinaryVideo(outputvideo)
-	file, fileType := decodeFileFromBinaryToASCII(outputBitArray)
-	decodeASCIIAndGenerateFile(file, fileType)
+	outputByteArray := decodeVideoToBinaryString()
+	file, fileType := decodeFileFromBinaryToASCII(outputByteArray)
+	outputFileName := generateFileUsingDecodedBytes(file, fileType)
+	fmt.Printf("Output decoded file from video: %s\n", outputFileName)
 }
 
-func readAndEncodeFileAsBinary() {
+func readAndEncodeASCIIFileAsBinary() {
 	file, err := os.Open(*inputfile)
 
 	if err != nil {
@@ -69,12 +71,13 @@ func readAndEncodeFileAsBinary() {
 	}
 	defer file.Close()
 
+	// Read file type
 	st, _ := os.Stat(*inputfile)
 	fileName := *inputfile
 	fileType := fileName[strings.LastIndex(fileName, ".")+1:]
 	fmt.Printf("Size of the file in Mb: %d bytes, file type: %s \n", st.Size(), fileType)
 
-	// Define the size of the window
+	// Define the size of the buffer window to read
 	const windowSize = 1024
 	buffer := make([]byte, windowSize)
 
@@ -87,122 +90,90 @@ func readAndEncodeFileAsBinary() {
 		}
 		if n == 0 {
 			// Append DummyByte and FileType to end file data
-			fileDataInBits.WriteString(createBinaryList([]byte{0}))
-			fileDataInBits.WriteString(createBinaryList([]byte(fileType)))
+			fileDataBitsAsString.WriteString(createBinaryAppenededString([]byte{0}))
+			fileDataBitsAsString.WriteString(createBinaryAppenededString([]byte(fileType)))
 			break // End of file
 		}
 		// Append file data
-		fileDataInBits.WriteString(createBinaryList(buffer[:n]))
+		fileDataBitsAsString.WriteString(createBinaryAppenededString(buffer[:n]))
 	}
 }
 
-func createBinaryList(b []byte) (d string) {
+func createBinaryAppenededString(b []byte) (d string) {
 	for _, byteData := range b {
+		// Format byte as a binary string with 8 bits and append to string
 		d += fmt.Sprintf("%08b", byteData)
 	}
 	return
 }
 
-func decodeFileFromBinaryToASCII(data []string) (file []byte, fileType []byte) {
-	lastIndex := 0
-loop:
-	for i := len(data) - 1; i >= 0; i-- {
-		if data[i] == dummySplitByte {
-			lastIndex = i
-			break loop
-		}
-	}
+func createVideoFromBitString() {
+	frameData := createVideoFrameData()
 
-	fileData := data[:lastIndex]
-	fileTypeData := data[lastIndex+1:]
-
-	file = createASCIIList(fileData)
-	fileType = createASCIIList(fileTypeData)
-	return
-}
-
-func convertBinaryToASCII(s string) byte {
-	num, _ := strconv.ParseInt(s, 2, 10)
-	return byte(num)
-}
-
-func createASCIIList(s []string) (retData []byte) {
-	for _, stringData := range s {
-		retData = append(retData, convertBinaryToASCII(stringData))
-	}
-	return
-}
-
-func decodeASCIIAndGenerateFile(byteArray, fileTypeBytes []byte) {
-	fileType := string(fileTypeBytes)
-	outputFile, err := os.Create(fmt.Sprintf("%s.%s", outputFile, fileType))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer outputFile.Close()
-
-	_, err = outputFile.Write(byteArray)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func createVideoFromEncodeData() string {
-	data, _ := createBinaryVideo()
-
-	// Write binary data to a temporary file
+	// Write frame data to a temporary file
 	tempFile, err := os.CreateTemp("", "video_*.raw")
 	if err != nil {
 		fmt.Println("Error creating temporary file:", err)
-		return ""
 	}
 	defer os.Remove(tempFile.Name())
 
-	_, err = tempFile.Write(data)
+	_, err = tempFile.Write(frameData)
 	if err != nil {
 		fmt.Println("Error writing binary data to file:", err)
-		return ""
 	}
 	tempFile.Close()
 
-	// Convert binary data to video using FFmpeg
-
+	// Convert frames to video using FFmpeg
+	// Raw video data as input, encodes it using the H.264 codec, and produces an output video file with specified settings and parameters.
+	// The resulting video is encoded with ultrafast speed and high-quality output.
+	// `-qp 0` sets video to have higher quality so that we have a lossless video, which helps in decoding to get back the same data
 	cmd := exec.Command("ffmpeg", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", fmt.Sprintf("%dx%d", *width, *height), "-r", "24", "-i", tempFile.Name(), "-c:v", "libx264", "-preset", "ultrafast", "-qp", "0", "-pix_fmt", "yuv420p", outputVideo)
 	err = cmd.Run()
 	if err != nil {
 		fmt.Println("Error converting binary data to video:", err)
-		return ""
 	}
 
 	fmt.Println("Video created successfully:", outputVideo)
-	return outputVideo
 }
 
-func createBinaryVideo() ([]byte, error) {
-	stringData := fileDataInBits.String()
+func createVideoFrameData() []byte {
+	fileDataAndFileTypeBitString := fileDataBitsAsString.String()
 	// Clear unwanted strings builder!
-	fileDataInBits.Reset()
+	fileDataBitsAsString.Reset()
+
 	// Based on number of bits we would need that many pixels and based on height and width we get the number of frames required
-	numFrames := int(math.Ceil(float64(len(stringData)) / float64((*height)*(*width))))
-	// Each frame which has pixels requires RGB channel
+	numFrames := int(math.Ceil(float64(len(fileDataAndFileTypeBitString)) / float64((*height)*(*width))))
+
+	// Each frame containing pixels requires RGB channel
 	frameSize := (*width) * (*height) * 3
 
 	// Creating a video byte array for the output data in frames
-	data := make([]byte, numFrames*frameSize)
+	frameData := make([]byte, numFrames*frameSize)
 	count := 0
-	for i := 0; i < numFrames && len(stringData) > count; i++ {
+	// Loop till each frame is filled with data
+	// We should not exceed the fileDataAndFileTypeBitString length and the rest of the frame would be filled with black pixels
+	for i := 0; i < numFrames && len(fileDataAndFileTypeBitString) > count; i++ {
+		// Offset to skip to required frame index i.e, required frame!
 		offset := i * frameSize
-		count = fillFrame(data[offset:offset+frameSize], stringData, count)
+		count = fillFrame(frameData[offset:offset+frameSize], fileDataAndFileTypeBitString, count)
 	}
-
-	return data, nil
+	return frameData
 }
 
+// Fill frame pixel RGB channel with required color based on data
 func fillFrame(frame []byte, stringData string, count int) int {
+	// Filling each pixel!
 	for y := 0; y < *height && len(stringData) > count; y++ {
 		for x := 0; x < *width && len(stringData) > count; x++ {
+			// frameOffset refers to the position within the frame matrix where data requires to be written!
+			// y*(*width) - Calculates the offset to the start of the row where the pixel should be written
+			// (y*(*width) + x) - Calculates the offset to the column of the row where the pixel should be written
+			// (y*(*width) + x) * 3 - Calculates the total offset within the frame matrix where the RGB values for the pixel at position
 			frameOffset := (y*(*width) + x) * 3
 			bitForFrame := 0
+			// If 0 we set pixel as white else as black
+			// 255,255,255 - White
+			// 0,0,0 - Black
 			if string(stringData[count]) == "0" {
 				bitForFrame = 255
 			}
@@ -212,11 +183,17 @@ func fillFrame(frame []byte, stringData string, count int) int {
 			count++
 		}
 	}
+	// Count is used to loop through the fileDataAndFileTypeBitString
 	return count
 }
 
-func decodeBinaryVideo(inputFile string) []string {
+func decodeVideoToBinaryString() []string {
+	// Setting video file
+	inputFile := outputVideo
+
+	// Decodes video using FFmpeg, and outputs the raw video frames in RGB24
 	cmd := exec.Command("ffmpeg", "-i", inputFile, "-f", "image2pipe", "-vcodec", "rawvideo", "-pix_fmt", "rgb24", "-")
+
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
@@ -224,34 +201,97 @@ func decodeBinaryVideo(inputFile string) []string {
 		fmt.Printf("error running ffmpeg command: %v \n", err)
 	}
 
+	//  Extracts the raw video data from the out buffer
 	data := out.Bytes()
 	var result bytes.Buffer
-	var byteStrings []string
+	var byteStringArr []string
+	// Loops through the data from start and increments by frame size
 	for i := 0; i < len(data); i += (*width) * (*height) * 3 {
+		// Loops from the frame start till end and increments by pixel's same color channel value.
+		// i.e, We can consider the value in any of the RGB channel as all of them would have same value
 		for j := i; j < i+((*width)*(*height)*3); j += 3 {
+			// For each color channel value (data[j]),
+			// if the value is greater than 127 (approximately halfway between 0 and 255), it appends '0'
+			// Else, it appends '1'
+			// This effectively converts color channel value to a binary digit
+			// Reason for checking > 127 is because we see loss in video which shows that even if we appended 255 we might get a value in range of [200-255] etc
+			// So we can take either a max value of 3 RGB channel or take any of the channel value!
 			if data[j] > 127 {
 				result.WriteByte('0')
 			} else {
 				result.WriteByte('1')
 			}
+			// Saving 8 bits together to convert the bitString to ASCII later
 			if result.Len() == 8 {
-				byteStrings = append(byteStrings, result.String())
+				byteStringArr = append(byteStringArr, result.String())
 				result.Reset()
 			}
 		}
 	}
 
-	// Remove unwanted blank data
+	// Removes unwanted blank data
+	// End of the video is appended by black pixels which has no data and we should clear them out
 	check := blankByte
 	for check == blankByte {
-		byteStrings = byteStrings[:len(byteStrings)-1]
-		check = byteStrings[len(byteStrings)-1]
+		byteStringArr = byteStringArr[:len(byteStringArr)-1]
+		check = byteStringArr[len(byteStringArr)-1]
 	}
-	return byteStrings
+	return byteStringArr
+}
+
+func decodeFileFromBinaryToASCII(byteStringArr []string) (file []byte, fileType []byte) {
+	// Find File data and Filetype split by dummySplitByte
+	lastIndex := 0
+loop:
+	for i := len(byteStringArr) - 1; i >= 0; i-- {
+		// Index to split file data and file type based on dummySplitByte
+		if byteStringArr[i] == dummySplitByte {
+			lastIndex = i
+			break loop
+		}
+	}
+
+	fileData := byteStringArr[:lastIndex]
+	fileTypeData := byteStringArr[lastIndex+1:]
+
+	// Find file and fileType bytes
+	file = convertBinaryToASCIIByteArray(fileData)
+	fileType = convertBinaryToASCIIByteArray(fileTypeData)
+	return
+}
+
+func convertBinaryToASCIIByteArray(s []string) (retData []byte) {
+	for _, stringData := range s {
+		retData = append(retData, convertBinaryToASCII(stringData))
+	}
+	return
+}
+
+func convertBinaryToASCII(s string) byte {
+	// Return byte value of the binary string
+	num, _ := strconv.ParseInt(s, 2, 10)
+	return byte(num)
+}
+
+func generateFileUsingDecodedBytes(fileDataBytes, fileTypeBytes []byte) (fileName string) {
+	// Generate file using filename and fileTypeBytes
+	fileName = fmt.Sprintf("%s.%s", outputFile, fileTypeBytes)
+	outputFile, err := os.Create(fileName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer outputFile.Close()
+
+	// Append fileDataBytes to file
+	_, err = outputFile.Write(fileDataBytes)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return
 }
 
 // UnOptimized function to read data from file!
-func readAndEncodeFileAsBinaryUnOptimized() string {
+func readAndEncodeASCIIFileAsBinaryUnOptimized() string {
 	file, err := os.Open(*inputfile)
 
 	if err != nil {
@@ -271,9 +311,9 @@ func readAndEncodeFileAsBinaryUnOptimized() string {
 	}
 
 	fileTypeBytes := []byte(fileType)
-	fileBytesAppendedString := createBinaryList(fileBytes)
+	fileBytesAppendedString := createBinaryAppenededString(fileBytes)
 	fileBytesAppendedString += dummySplitByte
-	fileTypeByteString := createBinaryList(fileTypeBytes)
+	fileTypeByteString := createBinaryAppenededString(fileTypeBytes)
 	fileBytesAppendedString += fileTypeByteString
 
 	return fileBytesAppendedString
