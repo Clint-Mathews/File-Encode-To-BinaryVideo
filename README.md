@@ -44,6 +44,7 @@ Example:
 
 - `binaryVideo.mp4`: Binary video of the file.
 - `decodedFile.*filetype`: Decoded file from the binary video.
+- The programme also prints out the encode-decode execution time.
 
 
 ## Demo
